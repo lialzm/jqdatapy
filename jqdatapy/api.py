@@ -6,7 +6,57 @@ import string
 import pandas as pd
 import requests
 
-from jqdatapy import jqdata_env, save_env
+# from jqdatapy import jqdata_env, save_env
+
+import os
+from pathlib import Path
+
+JQDATA_HOME = os.environ.get('JQDATA_HOME')
+if not JQDATA_HOME:
+    JQDATA_HOME = os.path.abspath(os.path.join(Path.home(), 'jqdata-home'))
+
+jqdata_env = {}
+
+
+def init_env(username = None, password = None, jqdata_home = JQDATA_HOME):
+    """
+
+    :param username: 聚宽用户名，即注册手机号
+    :param password: 密码
+    :param jqdata_home: 配置存储路径，默认为~/jqdata-home
+    """
+    if not os.path.exists(jqdata_home):
+        os.makedirs(jqdata_home)
+
+    # create default config.json if not exist
+    config_path = os.path.join(jqdata_home, 'config.json')
+    if not os.path.exists(config_path):
+        from shutil import copyfile
+        copyfile(os.path.abspath(os.path.join(os.path.dirname(__file__), 'config.json')), config_path)
+
+    with open(config_path) as f:
+        config_json = json.load(f)
+        for k in config_json:
+            jqdata_env[k] = config_json[k]
+
+    if username and password:
+        jqdata_env['username'] = username
+        jqdata_env['password'] = password
+        with open(config_path, 'w+') as outfile:
+            json.dump(jqdata_env, outfile)
+
+    import pprint
+    pprint.pprint(jqdata_env)
+
+    return config_path
+
+
+config_path = init_env()
+
+
+def save_env():
+    with open(config_path, 'w+') as outfile:
+        json.dump(jqdata_env, outfile)
 
 url = "https://dataapi.joinquant.com/apis"
 
@@ -18,16 +68,17 @@ class HttpAccessError(Exception):
         self.code = code
         self.msg = msg
 
-    def __str__(self) -> str:
-        return f"code:{self.code},msg:{self.msg}"
+    def __str__(self) :
+        print(self.msg)
+        return "msg:"+str(self.msg)
 
 
 class DataError(Exception):
     def __init__(self, msg):
         self.msg = msg
 
-    def __str__(self) -> str:
-        return f"msg:{self.msg}"
+    def __str__(self):
+        return "msg:"+str(self.msg)
 
 
 def run_query(
@@ -279,13 +330,13 @@ def get_token(mob=None, pwd=None, force=False):
 
 
 def request_jqdata(
-    method: string,
-    token: string = None,
+    method,
+    token = None,
     return_type="df",
     dtype={"code": str},
     parse_dates=["day"],
     header="infer",
-    **kwargs,
+    **kwargs
 ):
     if not token:
         token = get_token(force=True)
@@ -304,7 +355,7 @@ def request_jqdata(
                 parse_dates=parse_dates,
             )
         except:
-            raise DataError(f"wrong data: {resp.text}")
+            raise DataError("wrong data: "+str(resp.text))
         return df
 
     return resp.content
@@ -319,13 +370,13 @@ def _get_token(mob=None, pwd=None):
     response = requests.post(url, data=json.dumps(body))
 
     if response.status_code != 200:
-        print(f"request jqdata error,code:{response.status_code},text:{response.text}")
+        print("request jqdata error,text:"+str(response.text))
         raise HttpAccessError(code=response.status_code, msg=response.text)
 
     return response.text
 
 
-def _request_jqdata(method: string, token: string = jqdata_env["token"], **kwargs):
+def _request_jqdata(method, token = jqdata_env["token"], **kwargs):
     body = {"method": method, "token": token, **kwargs}
     response = jqdata_session.post(url, data=json.dumps(body))
 
